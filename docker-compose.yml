@@ -1,0 +1,39 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: db
+    environment:
+      POSTGRES_DB: eventshuffle
+      POSTGRES_USER: eventshuffle
+      POSTGRES_PASSWORD: eventshuffle
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U eventshuffle -d eventshuffle"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+    container_name: api
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    environment:
+      POSTGRES_DB: eventshuffle
+      POSTGRES_USER: eventshuffle
+      POSTGRES_PASSWORD: eventshuffle
+      POSTGRES_HOST: db
+      POSTGRES_PORT: "5432"
+      UV_PROJECT_ENVIRONMENT: /tmp/.venv
+      UV_LINK_MODE: copy
+    depends_on:
+      db:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "/app/entrypoint.sh"]
+
+volumes:
+  postgres_data:
