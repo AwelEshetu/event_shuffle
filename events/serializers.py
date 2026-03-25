@@ -18,31 +18,8 @@ class EventCreateSerializer(serializers.Serializer):
     dates = serializers.ListField(
         child=date_child_field(),
         allow_empty=False,
-        help_text="Candidate event dates.",
+        help_text="Candidate event dates (YYYY-MM-DD). Dates must not be in the past.",
     )
-
-    def validate_dates(self, value) -> list[str]:
-        seen: set[str] = set()
-        normalized_dates: list[str] = []
-
-        import datetime
-
-        today = datetime.date.today()
-        for date_value in value:
-            date_str = date_value.isoformat()
-            if date_str in seen:
-                raise serializers.ValidationError("Event dates must be unique.")
-            if date_value < today:
-                raise serializers.ValidationError(
-                    {
-                        "detail": "Event dates must not be in the past.",
-                        "invalidDates": [date_str],
-                    }
-                )
-            seen.add(date_str)
-            normalized_dates.append(date_str)
-
-        return normalized_dates
 
 
 class VoteCreateSerializer(serializers.Serializer):
@@ -54,11 +31,8 @@ class VoteCreateSerializer(serializers.Serializer):
     votes = serializers.ListField(
         child=date_child_field(),
         allow_empty=False,
-        help_text="Dates selected by the participant.",
+        help_text="Dates selected by the participant (must be one of the event's candidate dates).",
     )
-
-    def validate_votes(self, value) -> list[str]:
-        return [date_value.isoformat() for date_value in value]
 
 
 class EventListItemSerializer(serializers.Serializer):

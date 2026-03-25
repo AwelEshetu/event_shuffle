@@ -5,7 +5,7 @@ from typing import Optional, Tuple
 
 import pytest
 
-from events.models import Event, ParticipantVote
+from events.models import Event, EventDate, ParticipantVote, Vote
 from events.services import create_event
 
 
@@ -38,7 +38,18 @@ class SampleData:
     def create_participant_vote(
         self, event: Event, name: str, votes: list[str]
     ) -> ParticipantVote:
-        return ParticipantVote.objects.create(event=event, name=name, votes=votes)
+        pv = ParticipantVote.objects.create(event=event, name=name)
+        # create Vote rows linking to EventDate
+
+        for d in votes:
+            try:
+                parsed = datetime.date.fromisoformat(str(d))
+            except Exception:
+                continue
+            ed = EventDate.objects.filter(event=event, date=parsed).first()
+            if ed:
+                Vote.objects.create(participant=pv, event_date=ed)
+        return pv
 
     def add_votes(self, event: Event, votes_map: dict[str, list[str]]) -> None:
         for name, votes in votes_map.items():

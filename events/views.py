@@ -15,7 +15,7 @@ from .serializers import (EventCreateResponseSerializer, EventCreateSerializer,
                           EventListResponseSerializer,
                           EventResultsResponseSerializer, VoteCreateSerializer,
                           VoteDateValidationErrorSerializer)
-from .services import (aggregate_votes_by_date, create_event,
+from .services import (aggregate_votes_by_date, create_event, get_event_dates,
                        get_invalid_vote_dates, list_event_summaries,
                        suitable_dates_for_all, upsert_participant_vote)
 
@@ -79,7 +79,7 @@ class EventDetailView(RetrieveAPIView):
             {
                 "id": event.id,
                 "name": event.name,
-                "dates": event.dates,
+                "dates": get_event_dates(event),
                 "votes": aggregate_votes_by_date(event),
             },
             status=status.HTTP_200_OK,
@@ -125,7 +125,7 @@ class EventVoteView(GenericAPIView):
             {
                 "id": event.id,
                 "name": event.name,
-                "dates": event.dates,
+                "dates": get_event_dates(event),
                 "votes": aggregate_votes_by_date(event),
             },
             status=status.HTTP_200_OK,

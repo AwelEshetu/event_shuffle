@@ -4,7 +4,7 @@ import pytest
 from django.urls import reverse
 
 from events.models import Event
-from events.services import create_event
+from events.services import create_event, get_event_dates
 
 
 @pytest.mark.django_db
@@ -38,7 +38,7 @@ def test_show_event(client, event_with_user_votes, expected_show_event_votes):
     data = response.json()
     assert data["id"] == event.id
     assert data["name"] == event.name
-    assert data["dates"] == event.dates
+    assert data["dates"] == get_event_dates(event)
     assert data["votes"] == expected_show_event_votes
 
 

@@ -3,7 +3,6 @@ from django.db import models
 
 class Event(models.Model):
     name = models.CharField(max_length=255)
-    dates = models.JSONField()
 
 
 class ParticipantVote(models.Model):
@@ -13,12 +12,38 @@ class ParticipantVote(models.Model):
         related_name="participant_votes",
     )
     name = models.CharField(max_length=255)
-    votes = models.JSONField()
+
+
+class EventDate(models.Model):
+    event = models.ForeignKey(
+        Event,
+        on_delete=models.CASCADE,
+        related_name="event_dates",
+    )
+    date = models.DateField()
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["event", "date"], name="unique_event_date")
+        ]
+
+
+class Vote(models.Model):
+    participant = models.ForeignKey(
+        ParticipantVote,
+        on_delete=models.CASCADE,
+        related_name="vote_rows",
+    )
+    event_date = models.ForeignKey(
+        EventDate,
+        on_delete=models.CASCADE,
+        related_name="votes",
+    )
 
     class Meta:
         constraints = [
             models.UniqueConstraint(
-                fields=["event", "name"],
-                name="unique_vote_per_person_per_event",
+                fields=["participant", "event_date"],
+                name="unique_participant_eventdate",
             )
         ]
