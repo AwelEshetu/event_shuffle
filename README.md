@@ -18,8 +18,76 @@ Django backend API for creating events, collecting votes, and finding suitable d
 ## Prerequisites
 - Docker
 - Docker Compose
+- **uv** (for local development only; optional if using Docker)
 
-All commands run inside Docker containers. No local Python setup required.
+### Install uv
+uv is a fast Python package manager and runner. Install it from [astral.sh/uv](https://astral.sh/uv):
+
+```sh
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+After installation, sync dependencies for local work:
+```sh
+uv sync
+```
+
+**Note:** All commands can run inside Docker containers. Uv is only needed if working locally (e.g., generating migrations, linting).
+
+---
+
+## Environment Setup
+
+Before running the project, create a `.env` file from the provided template:
+
+```sh
+cp .env.example .env
+```
+
+Edit `.env` with your own values for all variables. See `.env.example` for the list of required environment variables.
+
+
+## Migration Management
+
+Migrations must be version-controlled and generated locally (requires `uv` installed):
+
+```sh
+# Generate migrations (after model changes)
+uv run python manage.py makemigrations
+
+# Commit migration files to git
+git add events/migrations/
+git commit -m "Add migration for..."
+```
+
+Or use Docker if `uv` is not installed locally:
+```sh
+docker-compose run --rm api python manage.py makemigrations
+```
+
+The container will automatically run `python manage.py migrate` on startup to apply pending migrations.
+
+## Local Development (Optional)
+
+If you have `uv` installed locally, you can work without Docker:
+
+```sh
+# Sync dependencies
+uv sync
+
+# Run tests
+uv run pytest
+
+# Format and lint code
+uv run black .
+uv run isort .
+uv run flake8 .
+
+# Start Django development server
+SECRET_KEY=dev-key uv run python manage.py runserver
+```
+
+Otherwise, all these commands work inside Docker containers.
 
 ---
 
@@ -108,10 +176,20 @@ Docs:
 ---
 
 ## Linting
-Run from project root:
-- `uv run black .`
-- `uv run isort .`
-- `uv run flake8 .`
+
+With `uv` installed locally:
+```sh
+uv run black .
+uv run isort .
+uv run flake8 .
+```
+
+Or in Docker:
+```sh
+docker-compose run --rm api uv run black .
+docker-compose run --rm api uv run isort .
+docker-compose run --rm api uv run flake8 .
+```
 
 ---
 

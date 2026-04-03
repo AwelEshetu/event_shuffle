@@ -29,6 +29,21 @@ def test_list_events(client, listed_events, listed_events_count):
 
 
 @pytest.mark.django_db
+def test_list_events_supports_pagination(client, sample_data):
+    sample_data.create_listed_events()
+    create_event(name="Jake's secret party", dates=list(sample_data.event_dates))
+
+    response = client.get(reverse("event-list"), {"pageSize": 2})
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["count"] == 3
+    assert len(data["events"]) == 2
+    assert "next" in data
+    assert "previous" in data
+
+
+@pytest.mark.django_db
 def test_show_event(client, event_with_user_votes, expected_show_event_votes):
     event = event_with_user_votes
 
@@ -44,14 +59,14 @@ def test_show_event(client, event_with_user_votes, expected_show_event_votes):
 
 @pytest.mark.django_db
 def test_add_votes_to_event(
-    client,
+    auth_client,
     event_with_user_votes,
     add_vote_payload,
     sample_data,
 ):
     event = event_with_user_votes
 
-    response = client.post(
+    response = auth_client.post(
         reverse("event-vote", kwargs={"id": event.id}),
         data=add_vote_payload,
         content_type="application/json",
@@ -63,12 +78,12 @@ def test_add_votes_to_event(
     assert len(data["votes"]) == 2
     first_vote_people = data["votes"][0]["people"]
     assert sample_data.participants[0] in first_vote_people
-    assert sample_data.participants[2] in first_vote_people
+    assert "Dick" in first_vote_people
 
 
 @pytest.mark.django_db
-def test_add_votes_rejects_invalid_date(client, event, invalid_vote_payload):
-    response = client.post(
+def test_add_votes_rejects_invalid_date(auth_client, event, invalid_vote_payload):
+    response = auth_client.post(
         reverse("event-vote", kwargs={"id": event.id}),
         data=invalid_vote_payload,
         content_type="application/json",
@@ -79,17 +94,23 @@ def test_add_votes_rejects_invalid_date(client, event, invalid_vote_payload):
 
 
 @pytest.mark.django_db
-def test_show_results(client, event_with_votes, expected_suitable_dates, sample_data):
-    client.post(
+def test_show_results(
+    auth_client,
+    event_with_votes,
+    expected_suitable_dates,
+    sample_data,
+):
+    auth_client.post(
         reverse("event-vote", kwargs={"id": event_with_votes.id}),
         data={
-            "name": "Dick",
             "votes": [sample_data.event_dates[0], sample_data.event_dates[1]],
         },
         content_type="application/json",
     )
 
-    response = client.get(reverse("event-results", kwargs={"id": event_with_votes.id}))
+    response = auth_client.get(
+        reverse("event-results", kwargs={"id": event_with_votes.id})
+    )
 
     assert response.status_code == 200
     suitable_dates = response.json()["suitableDates"]
@@ -176,14 +197,13 @@ def test_get_event_returns_votes_by_date(
 
 @pytest.mark.django_db
 def test_add_vote_returns_updated_event(
-    client,
+    auth_client,
     event_with_votes,
     sample_data,
 ):
-    response = client.post(
+    response = auth_client.post(
         reverse("event-vote", kwargs={"id": event_with_votes.id}),
         data={
-            "name": "Dick",
             "votes": [sample_data.event_dates[0], sample_data.event_dates[1]],
         },
         content_type="application/json",
@@ -208,20 +228,21 @@ def test_add_vote_returns_updated_event(
 
 @pytest.mark.django_db
 def test_get_results_returns_suitable_dates(
-    client,
+    auth_client,
     event_with_votes,
     sample_data,
 ):
-    client.post(
+    auth_client.post(
         reverse("event-vote", kwargs={"id": event_with_votes.id}),
         data={
-            "name": "Dick",
             "votes": [sample_data.event_dates[0], sample_data.event_dates[1]],
         },
         content_type="application/json",
     )
 
-    response = client.get(reverse("event-results", kwargs={"id": event_with_votes.id}))
+    response = auth_client.get(
+        reverse("event-results", kwargs={"id": event_with_votes.id})
+    )
 
     assert response.status_code == 200
     data = response.json()
@@ -236,3 +257,14 @@ def test_get_results_returns_suitable_dates(
         sample_data.participants[4],
         "Dick",
     }
+
+
+@pytest.mark.django_db
+def test_add_vote_requires_authentication(client, event, sample_data):
+    response = client.post(
+        reverse("event-vote", kwargs={"id": event.id}),
+        data={"votes": [sample_data.event_dates[0]]},
+        content_type="application/json",
+    )
+
+    assert response.status_code == 403

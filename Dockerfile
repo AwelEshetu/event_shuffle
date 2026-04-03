@@ -26,9 +26,9 @@ RUN mkdir -p /app/.pytest_cache \
 USER appuser
 ENV PATH="/home/appuser/.local/bin:${PATH}"
 
-# Install uv as appuser, then sync dependencies
+# Install uv as appuser, then sync dependencies (including dev)
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh \
-    && uv sync --no-dev
+    && uv sync
 
 # Copy the rest of the application code
 COPY --chown=appuser:appuser . /app

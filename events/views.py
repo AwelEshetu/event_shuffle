@@ -1,41 +1,52 @@
-import logging
-
-from django.core.exceptions import ValidationError
-from django.http import Http404
 from drf_spectacular.utils import OpenApiParameter, extend_schema
+from django.http import Http404
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.pagination import PageNumberPagination
 from rest_framework import status
 from rest_framework.generics import (CreateAPIView, GenericAPIView,
                                      ListAPIView, RetrieveAPIView)
 from rest_framework.parsers import JSONParser
 from rest_framework.response import Response
 
-from .models import Event
 from .serializers import (EventCreateResponseSerializer, EventCreateSerializer,
                           EventDetailResponseSerializer,
+                          EventListPaginatedResponseSerializer,
                           EventListResponseSerializer,
                           EventResultsResponseSerializer, VoteCreateSerializer,
                           VoteDateValidationErrorSerializer)
 from .services import (aggregate_votes_by_date, create_event, get_event_dates,
-                       get_invalid_vote_dates, list_event_summaries,
+                       EventNotFoundError,
+                       get_event_or_404, get_invalid_vote_dates,
+                       list_event_summaries,
                        suitable_dates_for_all, upsert_participant_vote)
 
-logger = logging.getLogger(__name__)
 
-
-def get_event_or_404(event_id: int) -> Event:
-    try:
-        return Event.objects.get(id=event_id)
-    except Event.DoesNotExist:
-        logger.warning(f"Event not found for id={event_id}")
-        raise Http404("Event not found.")
+class EventListPagination(PageNumberPagination):
+    page_size = 20
+    page_size_query_param = "pageSize"
+    max_page_size = 100
 
 
 class EventListView(ListAPIView):
     serializer_class = EventListResponseSerializer
+    pagination_class = EventListPagination
 
-    @extend_schema(responses={200: EventListResponseSerializer})
+    @extend_schema(responses={200: EventListPaginatedResponseSerializer})
     def list(self, request):
         events = list_event_summaries()
+        page = self.paginate_queryset(events)
+
+        if page is not None:
+            return Response(
+                {
+                    "count": self.paginator.page.paginator.count,
+                    "next": self.paginator.get_next_link(),
+                    "previous": self.paginator.get_previous_link(),
+                    "events": list(page),
+                },
+                status=status.HTTP_200_OK,
+            )
+
         return Response({"events": list(events)}, status=status.HTTP_200_OK)
 
 
@@ -50,15 +61,10 @@ class EventCreateView(CreateAPIView):
     def create(self, request):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        try:
-            event = create_event(
-                name=serializer.validated_data["name"],
-                dates=serializer.validated_data["dates"],
-            )
-        except ValidationError as exc:
-            detail = getattr(exc, "message_dict", str(exc))
-            return Response(detail, status=status.HTTP_400_BAD_REQUEST)
-
+        event = create_event(
+            name=serializer.validated_data["name"],
+            dates=serializer.validated_data["dates"],
+        )
         return Response({"id": event.id}, status=status.HTTP_201_CREATED)
 
 
@@ -67,7 +73,10 @@ class EventDetailView(RetrieveAPIView):
     lookup_url_kwarg = "id"
 
     def get_object(self):
-        return get_event_or_404(self.kwargs[self.lookup_url_kwarg])
+        try:
+            return get_event_or_404(self.kwargs[self.lookup_url_kwarg])
+        except EventNotFoundError as exc:
+            raise Http404("Event not found.") from exc
 
     @extend_schema(
         parameters=[OpenApiParameter("id", int, OpenApiParameter.PATH)],
@@ -89,9 +98,13 @@ class EventDetailView(RetrieveAPIView):
 class EventVoteView(GenericAPIView):
     serializer_class = VoteCreateSerializer
     parser_classes = [JSONParser]
+    permission_classes = [IsAuthenticated]
 
-    def get_event(self, id: int) -> Event:
-        return get_event_or_404(id)
+    def get_event(self, id: int):
+        try:
+            return get_event_or_404(id)
+        except EventNotFoundError as exc:
+            raise Http404("Event not found.") from exc
 
     @extend_schema(
         parameters=[OpenApiParameter("id", int, OpenApiParameter.PATH)],
@@ -119,7 +132,7 @@ class EventVoteView(GenericAPIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        upsert_participant_vote(event, serializer.validated_data["name"], vote_dates)
+        upsert_participant_vote(event, request.user, vote_dates)
 
         return Response(
             {
@@ -137,7 +150,10 @@ class EventResultsView(RetrieveAPIView):
     lookup_url_kwarg = "id"
 
     def get_object(self):
-        return get_event_or_404(self.kwargs[self.lookup_url_kwarg])
+        try:
+            return get_event_or_404(self.kwargs[self.lookup_url_kwarg])
+        except EventNotFoundError as exc:
+            raise Http404("Event not found.") from exc
 
     @extend_schema(
         parameters=[OpenApiParameter("id", int, OpenApiParameter.PATH)],

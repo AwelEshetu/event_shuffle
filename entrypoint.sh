@@ -12,17 +12,18 @@ if [ "$#" -gt 0 ]; then
             ;;
     esac
 else
-    # Run migrations
-    uv run python manage.py makemigrations
+    # Run migrations only (don't generate them)
     uv run python manage.py migrate
 
-    # Create Django admin user if not exists
-    uv run python manage.py shell <<EOF
+    # Create Django admin user if credentials are provided
+    if [ -n "$DJANGO_SUPERUSER_USERNAME" ] && [ -n "$DJANGO_SUPERUSER_PASSWORD" ]; then
+        uv run python manage.py shell <<EOF
 from django.contrib.auth import get_user_model
 User = get_user_model()
-if not User.objects.filter(username='admin').exists():
-    User.objects.create_superuser('admin', 'admin@example.com', 'adminpass')
+if not User.objects.filter(username='$DJANGO_SUPERUSER_USERNAME').exists():
+    User.objects.create_superuser('$DJANGO_SUPERUSER_USERNAME', 'admin@example.com', '$DJANGO_SUPERUSER_PASSWORD')
 EOF
+    fi
 
     # Start the server
     uv run python manage.py runserver 0.0.0.0:8000

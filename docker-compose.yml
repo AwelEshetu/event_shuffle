@@ -2,14 +2,11 @@ services:
   db:
     image: postgres:16-alpine
     container_name: db
-    environment:
-      POSTGRES_DB: eventshuffle
-      POSTGRES_USER: eventshuffle
-      POSTGRES_PASSWORD: eventshuffle
+    env_file: .env
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U eventshuffle -d eventshuffle"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-eventshuffle} -d ${POSTGRES_DB:-eventshuffle}"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -22,12 +19,8 @@ services:
       - "8000:8000"
     volumes:
       - .:/app
+    env_file: .env
     environment:
-      POSTGRES_DB: eventshuffle
-      POSTGRES_USER: eventshuffle
-      POSTGRES_PASSWORD: eventshuffle
-      POSTGRES_HOST: db
-      POSTGRES_PORT: "5432"
       UV_PROJECT_ENVIRONMENT: /tmp/.venv
       UV_LINK_MODE: copy
     depends_on:

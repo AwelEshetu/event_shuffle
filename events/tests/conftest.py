@@ -5,6 +5,8 @@ from typing import Optional, Tuple
 
 import pytest
 
+from django.contrib.auth import get_user_model
+
 from events.models import Event, EventDate, ParticipantVote, Vote
 from events.services import create_event
 
@@ -36,9 +38,9 @@ class SampleData:
         return create_event(name=self.event_name, dates=list(self.event_dates))
 
     def create_participant_vote(
-        self, event: Event, name: str, votes: list[str]
+        self, event: Event, name: str, votes: list[str], user=None
     ) -> ParticipantVote:
-        pv = ParticipantVote.objects.create(event=event, name=name)
+        pv = ParticipantVote.objects.create(event=event, name=name, user=user)
         # create Vote rows linking to EventDate
 
         for d in votes:
@@ -90,7 +92,6 @@ def create_event_payload(event_name, event_dates) -> dict:
 @pytest.fixture
 def add_vote_payload(sample_data) -> dict:
     return {
-        "name": sample_data.participants[2],
         "votes": [sample_data.event_dates[0], sample_data.event_dates[1]],
     }
 
@@ -98,7 +99,28 @@ def add_vote_payload(sample_data) -> dict:
 @pytest.fixture
 def invalid_vote_payload() -> dict:
     future = (datetime.date.today() + timedelta(days=365)).isoformat()
-    return {"name": "Someone", "votes": [future]}
+    return {"votes": [future]}
+
+
+@pytest.fixture
+def user_factory(db):
+    user_model = get_user_model()
+
+    def create_user(username: str):
+        return user_model.objects.create_user(
+            username=username,
+            email=f"{username.lower()}@example.com",
+            password="test-pass-123",
+        )
+
+    return create_user
+
+
+@pytest.fixture
+def auth_client(client, user_factory):
+    user = user_factory("Dick")
+    client.force_login(user)
+    return client
 
 
 @pytest.fixture
